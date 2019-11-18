@@ -59,7 +59,8 @@ type SubLocDesc struct {
 }
 
 // SubLocMap indicates which transitions actually lead to or from a sub
-// location (as opposed to a regular location).
+// location (as opposed to a regular location).  A value of -1 represents the
+// parent regular location.
 var SubLocMap = map[SubLocDesc]defs.LocPair{
 	// Highpool.
 	SubLocDesc{0, defs.Block0Highpool, 1}: defs.LocPair{-1, SubLocationHighpoolCave},
@@ -75,7 +76,7 @@ var SubLocMap = map[SubLocDesc]defs.LocPair{
 
 	// Desert Nomads.
 	SubLocDesc{0, defs.Block0DesertNomads, 1}:  defs.LocPair{-1, SubLocationDesertNomadsTent},
-	SubLocDesc{0, defs.Block0DesertNomads, 12}: defs.LocPair{SubLocationDesertNomadsTent, -1},
+	SubLocDesc{0, defs.Block0DesertNomads, 12}: defs.LocPair{-1, SubLocationDesertNomadsTent},
 	SubLocDesc{0, defs.Block0DesertNomads, 13}: defs.LocPair{SubLocationDesertNomadsTent, -1},
 
 	// Quartz
