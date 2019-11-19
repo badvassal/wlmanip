@@ -229,14 +229,29 @@ var LocationPostSewersMap = map[int]bool{
 }
 
 // LocationReadXListMap contains blacklisted and whitelisted transitions.
-var LocationReadXListMap = map[defs.LocPair]TransXList{
-	defs.LocPair{defs.LocationDesertNomads, defs.LocationDesertNomads}: TransXList{
-		// This transition puts the player back in the tent (only if the player
-		// has laready entered the tent once).
-		Black: []int{12},
+var LocationXListPairMap = map[defs.LocPair]TransXListPair{
+	defs.LocPair{defs.LocationDesertNomads, defs.LocationDesertNomads}: TransXListPair{
+		Read: TransXList{
+			// This transition puts the player back in the tent (only if the
+			// player has laready entered the tent once).
+			Black: []int{12},
+		},
 	},
 
-	defs.LocPair{defs.LocationNeedles, defs.LocationNeedlesDowntownWest}: TransXList{
-		White: []int{defs.SelectorNeedlesToDowntownWest0},
+	defs.LocPair{defs.LocationLasVegas, defs.LocationFatFreddys}: TransXListPair{
+		// This is the transition to the proton ax room.  I can't find the
+		// transition out, so for now just blacklist this.
+		Read: TransXList{
+			Black: []int{3},
+		},
+		Write: TransXList{
+			Black: []int{3},
+		},
+	},
+
+	defs.LocPair{defs.LocationNeedles, defs.LocationNeedlesDowntownWest}: TransXListPair{
+		Read: TransXList{
+			White: []int{defs.SelectorNeedlesToDowntownWest0},
+		},
 	},
 }

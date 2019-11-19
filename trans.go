@@ -26,6 +26,11 @@ type TransXList struct {
 	White []int
 }
 
+type TransXListPair struct {
+	Read  TransXList
+	Write TransXList
+}
+
 // CopyTrans replaces a destination transition with a source.  A few fields in
 // the destintion are preserved to maintain data integrity in the parent MSQ
 // block.
@@ -38,8 +43,8 @@ func CopyTrans(dst *action.Transition, src action.Transition) {
 	dst.Location = src.Location
 }
 
-// filterSrcEntries applies white lists and black lists to a list of entries.
-func filterSrcEntries(entries []*TransEntry) []*TransEntry {
+// delistEntries applies white lists and black lists to a list of entries.
+func delistEntries(entries []*TransEntry, isFrom bool, isRead bool) []*TransEntry {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -48,13 +53,33 @@ func filterSrcEntries(entries []*TransEntry) []*TransEntry {
 	for _, e := range entries {
 		keep := true
 
-		xlist := LocationReadXListMap[defs.LocPair{e.FromLoc, e.Trans.Location}]
+		var loc int
+		if isFrom {
+			loc = e.FromLoc
+		} else {
+			loc = e.Trans.Location
+		}
+
+		pair := LocationXListPairMap[defs.LocPair{e.FromLoc, e.Trans.Location}]
+		var xlist TransXList
+		if isRead {
+			xlist = pair.Read
+		} else {
+			xlist = pair.Write
+		}
+
+		entryStr := fmt.Sprintf("%s,%d,", LocationString(loc), e.Selector)
+		if isRead {
+			entryStr += "read"
+		} else {
+			entryStr += "write"
+		}
+
 		if len(xlist.White) > 0 {
 			keep = false
 			for _, w := range xlist.White {
 				if e.Selector == w {
-					log.Debugf("whitelisting %s,%d",
-						LocationString(e.FromLoc), e.Selector)
+					log.Debugf("whitelisting %s", entryStr)
 					keep = true
 					break
 				}
@@ -62,13 +87,11 @@ func filterSrcEntries(entries []*TransEntry) []*TransEntry {
 		}
 
 		if !keep {
-			log.Debugf("delisting %s,%d",
-				LocationString(e.FromLoc), e.Selector)
+			log.Debugf("delisting %s", entryStr)
 		} else {
 			for _, b := range xlist.Black {
 				if e.Selector == b {
-					log.Debugf("blacklisting %s,%d",
-						LocationString(e.FromLoc), e.Selector)
+					log.Debugf("blacklisting %s", entryStr)
 					keep = false
 					break
 				}
@@ -92,6 +115,8 @@ type transOpCtxt struct {
 	FromB []*TransEntry
 	ToB   []*TransEntry
 	DstDB decode.Block
+
+	ToA1WayUp []*TransEntry
 }
 
 func newTransOpCtxt(coll *Collection, state *decode.DecodeState, op TransOp) *transOpCtxt {
@@ -105,34 +130,57 @@ func newTransOpCtxt(coll *Collection, state *decode.DecodeState, op TransOp) *tr
 		return nil
 	}
 
+	isFullyDelisted := func(lp defs.LocPair, entries []*TransEntry) bool {
+		if len(entries) == 0 {
+			log.Warnf("delisted to 0: %s,%s",
+				LocationString(lp.From), LocationString(lp.To))
+			return true
+		}
+
+		return false
+	}
+
 	dstZIP := fromB[0].FromBlock
 	dstDB := state.Blocks[dstZIP.GameIdx][dstZIP.BlockIdx]
-	filtFromA := filterSrcEntries(fromA)
 
-	if len(filtFromA) == 0 {
-		log.Warnf("filtered to 0: %s,%s",
-			LocationString(op.A.From), LocationString(op.A.To))
+	filtFromA := delistEntries(fromA, true, true)
+	if isFullyDelisted(op.A, filtFromA) {
+		return nil
+	}
+
+	filtToA := delistEntries(toA, false, false)
+	if isFullyDelisted(op.A, filtToA) {
 		return nil
 	}
 
 	srcZIP := toA[0].FromBlock
 	srcDB := state.Blocks[srcZIP.GameIdx][srcZIP.BlockIdx]
-	filtToB := filterSrcEntries(toB)
 
-	if len(filtToB) == 0 {
-		log.Warnf("filtered to 0: %s,%s",
-			LocationString(op.B.From), LocationString(op.B.To))
+	filtFromB := delistEntries(fromB, true, false)
+	if isFullyDelisted(op.B, filtFromB) {
+		return nil
+	}
+
+	filtToB := delistEntries(toB, false, true)
+	if isFullyDelisted(op.B, filtToB) {
+		return nil
+	}
+
+	filtToA1WayUp := delistEntries(coll.Get1WayUp(op.A.To), false, false)
+	if isFullyDelisted(op.A, filtToA) {
 		return nil
 	}
 
 	return &transOpCtxt{
 		FromA: filtFromA,
-		ToA:   toA,
+		ToA:   filtToA,
 		SrcDB: srcDB,
 
-		FromB: fromB,
+		FromB: filtFromB,
 		ToB:   filtToB,
 		DstDB: dstDB,
+
+		ToA1WayUp: filtToA1WayUp,
 	}
 }
 
@@ -162,38 +210,44 @@ func ExecTransOp(coll *Collection, state *decode.DecodeState, op TransOp) {
 	}
 
 	// Cycles through "identical" selectors to keep things interesting.
-	selectCopySrc := func(idx int, entries []*TransEntry) action.Transition {
-		return entries[idx%len(entries)].Trans
+	selectCopySrc := func(idx int, entries []*TransEntry) (int, action.Transition) {
+		idx = idx % len(entries)
+		entry := entries[idx]
+
+		return entry.Selector, entry.Trans
 	}
 
 	log.Infof("setting transition: %s <-- %s", lpStr(op.B), lpStr(op.A))
 
 	// Replace highpool->workshop with agcenter->cave.
 	for i, e := range toe.FromB {
-		log.Debugf("replacing %s->%s(%d) with %s->%s (forward route)",
+		srcSel, srcTrans := selectCopySrc(i, toe.FromA)
+		log.Debugf("replacing %s->%s(%d) with %s->%s(%d) (forward route)",
 			locStr(op.B.From), locStr(op.B.To), e.Selector,
-			locStr(op.A.From), locStr(op.A.To))
+			locStr(op.A.From), locStr(op.A.To), srcSel)
 		CopyTrans(toe.DstDB.ActionTables.Transitions[e.Selector],
-			selectCopySrc(i, toe.FromA))
+			srcTrans)
 	}
 
 	// Replace cave->agcenter with workshop->highpool.
 	for i, e := range toe.ToA {
-		log.Debugf("replacing %s->%s(%d) with %s->%s (reverse route)",
+		srcSel, srcTrans := selectCopySrc(i, toe.ToB)
+		log.Debugf("replacing %s->%s(%d) with %s->%s(%d) (reverse route)",
 			locStr(op.A.To), locStr(op.A.From), e.Selector,
-			locStr(op.B.To), locStr(op.B.From))
+			locStr(op.B.To), locStr(op.B.From), srcSel)
 		CopyTrans(toe.SrcDB.ActionTables.Transitions[e.Selector],
-			selectCopySrc(i, toe.ToB))
+			srcTrans)
 	}
 
 	// Replace cave->worldmap with workshop->highpool.  The player should not
 	// emerge in a completely different part of the world map, so we reroute
 	// this transition to send the player the way he came.
-	for i, e := range coll.Get1WayUp(op.A.To) {
-		log.Debugf("replacing %s->%s(%d) with %s->%s (one way up)",
+	for i, e := range toe.ToA1WayUp {
+		srcSel, srcTrans := selectCopySrc(i, toe.ToB)
+		log.Debugf("replacing %s->%s(%d) with %s->%s(%d) (one way up)",
 			locStr(op.A.To), locStr(e.Trans.Location), e.Selector,
-			locStr(op.B.To), locStr(op.B.From))
+			locStr(op.B.To), locStr(op.B.From), srcSel)
 		CopyTrans(toe.SrcDB.ActionTables.Transitions[e.Selector],
-			selectCopySrc(i, toe.ToB))
+			srcTrans)
 	}
 }
