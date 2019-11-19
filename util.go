@@ -2,6 +2,7 @@ package wlmanip
 
 import (
 	"fmt"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -32,6 +33,16 @@ func ParseLocation(s string) (int, error) {
 	}
 
 	return defs.ParseLocation(s)
+}
+
+func ParseLocationNoCase(s string) (int, error) {
+	for k, v := range SubLocationNameMap {
+		if strings.EqualFold(s, v) {
+			return k, nil
+		}
+	}
+
+	return defs.ParseLocationNoCase(s)
 }
 
 // LocationFullString is an embellished form of LocationString.
