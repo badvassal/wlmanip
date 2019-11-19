@@ -28,9 +28,12 @@ const (
 	SubLocationDarwinLab             = 267
 	SubLocationDarwinBlackGilaTavern = 268
 
-	SubLocationSpadesCasinoWineCellar = 269
-	SubLocationSpadesCasinoLevel2     = 270
-	SubLocationSpadesCasinoBasement   = 271
+	SubLocationLasVegasJail         = 269
+	SubLocationLasVegasProtonAxRoom = 270
+
+	SubLocationSpadesCasinoWineCellar = 271
+	SubLocationSpadesCasinoLevel2     = 272
+	SubLocationSpadesCasinoBasement   = 273
 )
 
 var SubLocationNameMap = map[int]string{
@@ -47,6 +50,8 @@ var SubLocationNameMap = map[int]string{
 	SubLocationDarwinBlackMarket:       "DarwinBlackMarket",
 	SubLocationDarwinLab:               "DarwinLab",
 	SubLocationDarwinBlackGilaTavern:   "DarwinBlackGilaTavern",
+	SubLocationLasVegasJail:            "LasVegasJail",
+	SubLocationLasVegasProtonAxRoom:    "LasVegasProtonAxRoom",
 	SubLocationSpadesCasinoWineCellar:  "SpadesCasinoWineCellar",
 	SubLocationSpadesCasinoLevel2:      "SpadesCasinoLevel2",
 	SubLocationSpadesCasinoBasement:    "SpadesCasinoBasement",
@@ -104,6 +109,13 @@ var SubLocMap = map[SubLocDesc]defs.LocPair{
 	SubLocDesc{1, defs.Block1Darwin, 6}:  defs.LocPair{-1, SubLocationDarwinBlackGilaTavern},
 	SubLocDesc{1, defs.Block1Darwin, 0}:  defs.LocPair{SubLocationDarwinBlackGilaTavern, -1},
 	SubLocDesc{1, defs.Block1Darwin, 9}:  defs.LocPair{SubLocationDarwinBlackGilaTavern, -1},
+
+	// Las Vegas
+	SubLocDesc{1, defs.Block1LasVegas, 1}:   defs.LocPair{-1, SubLocationLasVegasJail},
+	SubLocDesc{1, defs.Block1FatFreddys, 6}: defs.LocPair{SubLocationLasVegasJail, defs.LocationLasVegas},
+	SubLocDesc{1, defs.Block1LasVegas, 3}:   defs.LocPair{-1, SubLocationLasVegasProtonAxRoom},
+	SubLocDesc{1, defs.Block1FatFreddys, 1}: defs.LocPair{SubLocationLasVegasProtonAxRoom,
+		defs.LocationLasVegas},
 
 	// Spades Casino
 	SubLocDesc{1, defs.Block1SpadesCasino, 1}: defs.LocPair{-1, SubLocationSpadesCasinoWineCellar},
@@ -192,6 +204,8 @@ var LocationDepthMap = map[int]int{
 	SubLocationDarwinBlackMarket:       2,
 	SubLocationDarwinLab:               2,
 	SubLocationDarwinBlackGilaTavern:   2,
+	SubLocationLasVegasJail:            2,
+	SubLocationLasVegasProtonAxRoom:    2,
 	SubLocationSpadesCasinoWineCellar:  3,
 	SubLocationSpadesCasinoLevel2:      3,
 	SubLocationSpadesCasinoBasement:    3,
