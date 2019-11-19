@@ -51,8 +51,8 @@ type CollectCfg struct {
 func shouldKeepTransition(entry TransEntry, cfg CollectCfg) bool {
 	logDiscard := func(reason string) {
 		log.Debugf("discarding transition (%s -> %s) %+v: %s",
-			LocationString(entry.FromLoc),
-			LocationString(entry.Trans.Location),
+			LocationString(entry.FromExactLoc),
+			LocationString(entry.ToExactLoc),
 			entry, reason)
 	}
 
