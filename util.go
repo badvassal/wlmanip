@@ -62,10 +62,10 @@ func TransitionIsIntra(lp defs.LocPair) bool {
 	return false
 }
 
-// FixupRelativeTransitions converts some relative transitions to absolute.
-// The transitions that it modifies are specified in a hardcoded list.
-func FixupRelativeTransitions(state *decode.DecodeState) error {
-	fixup := func(gameIdx int, blockIdx int, selector int,
+// FixupTransitions converts some relative transitions to absolute.  The
+// transitions that it modifies are specified in a hardcoded list.
+func FixupTransitions(state *decode.DecodeState) error {
+	relToAbs := func(gameIdx int, blockIdx int, selector int,
 		baseCoords gen.Point) error {
 
 		t := state.Blocks[gameIdx][blockIdx].ActionTables.Transitions[selector]
@@ -85,29 +85,30 @@ func FixupRelativeTransitions(state *decode.DecodeState) error {
 		return nil
 	}
 
-	err := fixup(0, defs.Block0Needles, defs.SelectorNeedlesToDowntownEast0, gen.Point{12, 22})
+	//// Make some relative transitions absolute.
+
+	// Needles --> Downtown East.
+	err := relToAbs(0, defs.Block0Needles, 11, gen.Point{12, 22})
 	if err != nil {
 		return err
 	}
-	err = fixup(0, defs.Block0Needles, defs.SelectorNeedlesToDowntownEast1, gen.Point{12, 22})
+	err = relToAbs(0, defs.Block0Needles, 22, gen.Point{12, 22})
 	if err != nil {
 		return err
 	}
 
-	err = fixup(0, defs.Block0Needles, defs.SelectorNeedlesToDowntownWest0, gen.Point{15, 24})
-	if err != nil {
-		return err
-	}
-	err = fixup(0, defs.Block0Needles, defs.SelectorNeedlesToDowntownWest1, gen.Point{15, 24})
+	// Needles --> Downtown West.
+	err = relToAbs(0, defs.Block0Needles, 20, gen.Point{15, 24})
 	if err != nil {
 		return err
 	}
 
-	err = fixup(0, defs.Block0NeedlesDowntownWest, defs.SelectorDowntownWestToNeedles0, gen.Point{20, 30})
+	// Downtown West --> Needles.
+	err = relToAbs(0, defs.Block0NeedlesDowntownWest, 2, gen.Point{20, 30})
 	if err != nil {
 		return err
 	}
-	err = fixup(0, defs.Block0NeedlesDowntownWest, defs.SelectorDowntownWestToNeedles1, gen.Point{20, 30})
+	err = relToAbs(0, defs.Block0NeedlesDowntownWest, 5, gen.Point{20, 30})
 	if err != nil {
 		return err
 	}
