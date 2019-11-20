@@ -84,9 +84,6 @@ func shouldKeepTransition(entry TransEntry, cfg CollectCfg) bool {
 			logDiscard("derelict")
 			return false
 		}
-		if defs.LocationIsDerelict(entry.FromLoc) {
-			return false
-		}
 	}
 
 	if !cfg.KeepPrevious && entry.Trans.Location == defs.LocationPrevious {
