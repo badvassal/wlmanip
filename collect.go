@@ -80,7 +80,7 @@ func shouldKeepTransition(entry TransEntry, cfg CollectCfg) bool {
 	}
 
 	if !cfg.KeepDerelict {
-		if entry.Trans.Derelict {
+		if entry.Trans.IsDerelict() {
 			logDiscard("derelict")
 			return false
 		}

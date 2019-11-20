@@ -39,7 +39,6 @@ func CopyTrans(dst *action.Transition, src action.Transition) {
 	dst.Prompt = src.Prompt
 	dst.LocX = src.LocX
 	dst.LocY = src.LocY
-	dst.Derelict = src.Derelict
 	dst.Location = src.Location
 }
 
