@@ -114,7 +114,7 @@ var SubLocMap = map[SubLocDesc]defs.LocPair{
 	SubLocDesc{1, defs.Block1LasVegas, 1}:   defs.LocPair{-1, SubLocationLasVegasJail},
 	SubLocDesc{1, defs.Block1FatFreddys, 6}: defs.LocPair{SubLocationLasVegasJail, defs.LocationLasVegas},
 	SubLocDesc{1, defs.Block1LasVegas, 3}:   defs.LocPair{-1, SubLocationLasVegasProtonAxRoom},
-	SubLocDesc{1, defs.Block1FatFreddys, 1}: defs.LocPair{SubLocationLasVegasProtonAxRoom,
+	SubLocDesc{1, defs.Block1FatFreddys, 5}: defs.LocPair{SubLocationLasVegasProtonAxRoom,
 		defs.LocationLasVegas},
 
 	// Spades Casino
@@ -233,24 +233,20 @@ var LocationXListPairMap = map[defs.LocPair]TransXListPair{
 	defs.LocPair{defs.LocationDesertNomads, defs.LocationDesertNomads}: TransXListPair{
 		Read: TransXList{
 			// This transition puts the player back in the tent (only if the
-			// player has laready entered the tent once).
+			// player has already entered the tent once).  If the
+			// DesertNomads->Tent transition gets replaced, entering the tent
+			// should never actually transport the player to the tent
+			// sublocation.
 			Black: []int{12},
-		},
-	},
-
-	defs.LocPair{defs.LocationLasVegas, defs.LocationFatFreddys}: TransXListPair{
-		// This is the transition to the proton ax room.  I can't find the
-		// transition out, so for now just blacklist this.
-		Read: TransXList{
-			Black: []int{3},
-		},
-		Write: TransXList{
-			Black: []int{3},
 		},
 	},
 
 	defs.LocPair{defs.LocationNeedles, defs.LocationNeedlesDowntownWest}: TransXListPair{
 		Read: TransXList{
+			// There are several ways to enter DowntownWest from Needles that
+			// can be confusing when they replace other transitions.
+			// FixupTransitions() makes transition 0 user friendly.  That is
+			// the only one we want to use.
 			White: []int{20},
 		},
 	},

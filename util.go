@@ -113,5 +113,16 @@ func FixupTransitions(state *decode.DecodeState) error {
 		return err
 	}
 
+	//// Apply some miscellaneous fixups.
+
+	// The exit from the proton ax room uses a "previous" transition.  The
+	// "previous" location is incompatible with transition replacement, so
+	// change it to explicitly specify the coordinates outside the building in
+	// Las Vegas.
+	t := state.Blocks[1][defs.Block1FatFreddys].ActionTables.Transitions[5]
+	t.Location = defs.LocationLasVegas
+	t.LocX = 46
+	t.LocY = 12
+
 	return nil
 }
