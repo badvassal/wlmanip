@@ -251,7 +251,7 @@ var LocationXListPairMap = map[defs.LocPair]TransXListPair{
 
 	defs.LocPair{defs.LocationNeedles, defs.LocationNeedlesDowntownWest}: TransXListPair{
 		Read: TransXList{
-			White: []int{defs.SelectorNeedlesToDowntownWest0},
+			White: []int{20},
 		},
 	},
 }

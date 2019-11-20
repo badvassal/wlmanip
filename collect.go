@@ -197,7 +197,7 @@ func collectTransitions(state decode.DecodeState, cfg CollectCfg) ([]*TransEntry
 // Collect gathers the transitions from among all MSQ blocks and constructs a
 // Collection.
 func Collect(state decode.DecodeState, cfg CollectCfg) (*Collection, error) {
-	if err := FixupRelativeTransitions(&state); err != nil {
+	if err := FixupTransitions(&state); err != nil {
 		return nil, err
 	}
 
