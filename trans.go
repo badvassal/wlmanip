@@ -43,7 +43,7 @@ func CopyTrans(dst *action.Transition, src action.Transition) {
 }
 
 // delistEntries applies white lists and black lists to a list of entries.
-func delistEntries(entries []*TransEntry, isFrom bool, isRead bool) []*TransEntry {
+func delistEntries(entries []*TransEntry, isRead bool) []*TransEntry {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -52,14 +52,10 @@ func delistEntries(entries []*TransEntry, isFrom bool, isRead bool) []*TransEntr
 	for _, e := range entries {
 		keep := true
 
-		var loc int
-		if isFrom {
-			loc = e.FromLoc
-		} else {
-			loc = e.Trans.Location
-		}
+		from := e.FromExactLoc
+		to := e.ToExactLoc
 
-		pair := LocationXListPairMap[defs.LocPair{e.FromLoc, e.Trans.Location}]
+		pair := LocationXListPairMap[defs.LocPair{from, to}]
 		var xlist TransXList
 		if isRead {
 			xlist = pair.Read
@@ -67,7 +63,7 @@ func delistEntries(entries []*TransEntry, isFrom bool, isRead bool) []*TransEntr
 			xlist = pair.Write
 		}
 
-		entryStr := fmt.Sprintf("%s,%d,", LocationString(loc), e.Selector)
+		entryStr := fmt.Sprintf("%s,%d,", LocationString(from), e.Selector)
 		if isRead {
 			entryStr += "read"
 		} else {
@@ -107,23 +103,32 @@ func delistEntries(entries []*TransEntry, isFrom bool, isRead bool) []*TransEntr
 
 // transOpCtxt contains context needed to execute a single transition op.
 type transOpCtxt struct {
-	FromA []*TransEntry
-	ToA   []*TransEntry
-	SrcDB decode.Block
+	AFwd []*TransEntry
+	ARev []*TransEntry
+	ADB  decode.Block
 
-	FromB []*TransEntry
-	ToB   []*TransEntry
-	DstDB decode.Block
+	BFwd []*TransEntry
+	BRev []*TransEntry
+	BDB  decode.Block
 
-	ToA1WayUp []*TransEntry
+	BRev1WayUp []*TransEntry
 }
 
-func newTransOpCtxt(coll *Collection, state *decode.DecodeState, op TransOp) *transOpCtxt {
-	fromA, toA := coll.GetFromTo(op.A)
-	fromB, toB := coll.GetFromTo(op.B)
+func newTransOpCtxt(coll *Collection, state *decode.DecodeState,
+	op TransOp) *transOpCtxt {
 
-	if len(fromA) == 0 || len(fromB) == 0 ||
-		len(toA) == 0 || len(toB) == 0 {
+	// We only filter the reverse routes in A and the forward routes in B;
+	// everything else is unfiltered.  Filtering is only necessary to restrict
+	// the transitions which we copy *from*.  When we replace a journey, we
+	// want to copy *to* all the selectors.  In other words, filter the reads,
+	// not the writes.
+	aFwd := coll.GetUnfiltered(op.A)
+	aRev := coll.GetFiltered(defs.LocPair{op.A.To, op.A.From})
+	bFwd := coll.GetFiltered(op.B)
+	bRev := coll.GetUnfiltered(defs.LocPair{op.B.To, op.B.From})
+
+	if len(aFwd) == 0 || len(bFwd) == 0 ||
+		len(aRev) == 0 || len(bRev) == 0 {
 
 		log.Warnf("ignoring op %+v: no round trip", op)
 		return nil
@@ -139,47 +144,43 @@ func newTransOpCtxt(coll *Collection, state *decode.DecodeState, op TransOp) *tr
 		return false
 	}
 
-	dstZIP := fromB[0].FromBlock
-	dstDB := state.Blocks[dstZIP.GameIdx][dstZIP.BlockIdx]
+	aZIP := aFwd[0].FromBlock
+	aDB := state.Blocks[aZIP.GameIdx][aZIP.BlockIdx]
 
-	filtFromA := delistEntries(fromA, true, true)
-	if isFullyDelisted(op.A, filtFromA) {
+	filtAFwd := delistEntries(aFwd, false)
+	if isFullyDelisted(op.A, filtAFwd) {
 		return nil
 	}
 
-	filtToA := delistEntries(toA, false, false)
-	if isFullyDelisted(op.A, filtToA) {
+	filtARev := delistEntries(aRev, true)
+	if isFullyDelisted(op.A, filtARev) {
 		return nil
 	}
 
-	srcZIP := toA[0].FromBlock
-	srcDB := state.Blocks[srcZIP.GameIdx][srcZIP.BlockIdx]
+	bZIP := bRev[0].FromBlock
+	bDB := state.Blocks[bZIP.GameIdx][bZIP.BlockIdx]
 
-	filtFromB := delistEntries(fromB, true, false)
-	if isFullyDelisted(op.B, filtFromB) {
+	filtBFwd := delistEntries(bFwd, true)
+	if isFullyDelisted(op.B, filtBFwd) {
 		return nil
 	}
 
-	filtToB := delistEntries(toB, false, true)
-	if isFullyDelisted(op.B, filtToB) {
+	filtBRev := delistEntries(bRev, false)
+	if isFullyDelisted(op.B, filtBRev) {
 		return nil
 	}
 
-	filtToA1WayUp := delistEntries(coll.Get1WayUp(op.A.To), false, false)
-	if isFullyDelisted(op.A, filtToA) {
-		return nil
-	}
-
+	filtBRev1WayUp := delistEntries(coll.Get1WayUp(op.B.To), false)
 	return &transOpCtxt{
-		FromA: filtFromA,
-		ToA:   filtToA,
-		SrcDB: srcDB,
+		AFwd: filtAFwd,
+		ARev: filtARev,
+		ADB:  aDB,
 
-		FromB: filtFromB,
-		ToB:   filtToB,
-		DstDB: dstDB,
+		BFwd: filtBFwd,
+		BRev: filtBRev,
+		BDB:  bDB,
 
-		ToA1WayUp: filtToA1WayUp,
+		BRev1WayUp: filtBRev1WayUp,
 	}
 }
 
@@ -196,8 +197,8 @@ func ExecTransOp(coll *Collection, state *decode.DecodeState, op TransOp) {
 
 	// For example:
 	// We are replacing the highpool->workshop transition with agcenter->cave.
-	// dst: highpool->workshop
-	// src: agcenter->cave
+	// A: highpool->workshop
+	// B: agcenter->cave
 
 	locStr := func(loc int) string {
 		return fmt.Sprintf("%-3d %s", loc, LocationString(loc))
@@ -216,37 +217,37 @@ func ExecTransOp(coll *Collection, state *decode.DecodeState, op TransOp) {
 		return entry.Selector, entry.Trans
 	}
 
-	log.Infof("setting transition: %s <-- %s", lpStr(op.B), lpStr(op.A))
+	log.Infof("setting transition: %s <-- %s", lpStr(op.A), lpStr(op.B))
 
 	// Replace highpool->workshop with agcenter->cave.
-	for i, e := range toe.FromB {
-		srcSel, srcTrans := selectCopySrc(i, toe.FromA)
+	for i, e := range toe.AFwd {
+		srcSel, srcTrans := selectCopySrc(i, toe.BFwd)
 		log.Debugf("replacing %s->%s(%d) with %s->%s(%d) (forward route)",
 			locStr(op.B.From), locStr(op.B.To), e.Selector,
 			locStr(op.A.From), locStr(op.A.To), srcSel)
-		CopyTrans(toe.DstDB.ActionTables.Transitions[e.Selector],
+		CopyTrans(toe.ADB.ActionTables.Transitions[e.Selector],
 			srcTrans)
 	}
 
 	// Replace cave->agcenter with workshop->highpool.
-	for i, e := range toe.ToA {
-		srcSel, srcTrans := selectCopySrc(i, toe.ToB)
+	for i, e := range toe.BRev {
+		srcSel, srcTrans := selectCopySrc(i, toe.ARev)
 		log.Debugf("replacing %s->%s(%d) with %s->%s(%d) (reverse route)",
-			locStr(op.A.To), locStr(op.A.From), e.Selector,
-			locStr(op.B.To), locStr(op.B.From), srcSel)
-		CopyTrans(toe.SrcDB.ActionTables.Transitions[e.Selector],
+			locStr(op.B.To), locStr(op.B.From), e.Selector,
+			locStr(op.A.To), locStr(op.A.From), srcSel)
+		CopyTrans(toe.BDB.ActionTables.Transitions[e.Selector],
 			srcTrans)
 	}
 
 	// Replace cave->worldmap with workshop->highpool.  The player should not
 	// emerge in a completely different part of the world map, so we reroute
 	// this transition to send the player the way he came.
-	for i, e := range toe.ToA1WayUp {
-		srcSel, srcTrans := selectCopySrc(i, toe.ToB)
+	for i, e := range toe.BRev1WayUp {
+		srcSel, srcTrans := selectCopySrc(i, toe.ARev)
 		log.Debugf("replacing %s->%s(%d) with %s->%s(%d) (one way up)",
-			locStr(op.A.To), locStr(e.Trans.Location), e.Selector,
-			locStr(op.B.To), locStr(op.B.From), srcSel)
-		CopyTrans(toe.SrcDB.ActionTables.Transitions[e.Selector],
+			locStr(op.B.To), locStr(e.Trans.Location), e.Selector,
+			locStr(op.A.To), locStr(op.A.From), srcSel)
+		CopyTrans(toe.BDB.ActionTables.Transitions[e.Selector],
 			srcTrans)
 	}
 }
