@@ -241,13 +241,24 @@ var LocationXListPairMap = map[defs.LocPair]TransXListPair{
 		},
 	},
 
+	// There are several ways to enter downtown from Needles that can be
+	// confusing when they replace other transitions.  FixupTransitions() makes
+	// one transition per downtown location user friendly.  Just use those
+	// ones.
 	defs.LocPair{defs.LocationNeedles, defs.LocationNeedlesDowntownWest}: TransXListPair{
 		Read: TransXList{
-			// There are several ways to enter DowntownWest from Needles that
-			// can be confusing when they replace other transitions.
-			// FixupTransitions() makes transition 0 user friendly.  That is
-			// the only one we want to use.
 			White: []int{20},
+		},
+	},
+	defs.LocPair{defs.LocationNeedles, defs.LocationNeedlesDowntownEast}: TransXListPair{
+		Read: TransXList{
+			White: []int{11},
+		},
+	},
+
+	defs.LocPair{defs.LocationNeedlesDowntownWest, defs.LocationNeedles}: TransXListPair{
+		Read: TransXList{
+			White: []int{2},
 		},
 	},
 }

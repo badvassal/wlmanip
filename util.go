@@ -35,6 +35,8 @@ func ParseLocation(s string) (int, error) {
 	return defs.ParseLocation(s)
 }
 
+// ParseLocationNoCase converts a string to an exact location code, ignoring
+// case.
 func ParseLocationNoCase(s string) (int, error) {
 	for k, v := range SubLocationNameMap {
 		if strings.EqualFold(s, v) {
@@ -66,7 +68,7 @@ func TransitionIsIntra(lp defs.LocPair) bool {
 // transitions that it modifies are specified in a hardcoded list.
 func FixupTransitions(state *decode.DecodeState) error {
 	relToAbs := func(gameIdx int, blockIdx int, selector int,
-		baseCoords gen.Point) error {
+		coords gen.Point) error {
 
 		t := state.Blocks[gameIdx][blockIdx].ActionTables.Transitions[selector]
 		if !t.Relative {
@@ -76,7 +78,7 @@ func FixupTransitions(state *decode.DecodeState) error {
 		}
 		oldT := *t
 
-		t.MakeAbsolute(baseCoords)
+		t.MakeAbsolute(coords)
 
 		log.Debugf("converted relative transition to absolute: "+
 			"game=%d block=%d selector=%d %+v --> %+v",
@@ -88,27 +90,19 @@ func FixupTransitions(state *decode.DecodeState) error {
 	//// Make some relative transitions absolute.
 
 	// Needles --> Downtown East.
-	err := relToAbs(0, defs.Block0Needles, 11, gen.Point{12, 22})
-	if err != nil {
-		return err
-	}
-	err = relToAbs(0, defs.Block0Needles, 22, gen.Point{12, 22})
+	err := relToAbs(0, defs.Block0Needles, 11, gen.Point{30, 13})
 	if err != nil {
 		return err
 	}
 
 	// Needles --> Downtown West.
-	err = relToAbs(0, defs.Block0Needles, 20, gen.Point{15, 24})
+	err = relToAbs(0, defs.Block0Needles, 20, gen.Point{1, 14})
 	if err != nil {
 		return err
 	}
 
 	// Downtown West --> Needles.
-	err = relToAbs(0, defs.Block0NeedlesDowntownWest, 2, gen.Point{20, 30})
-	if err != nil {
-		return err
-	}
-	err = relToAbs(0, defs.Block0NeedlesDowntownWest, 5, gen.Point{20, 30})
+	err = relToAbs(0, defs.Block0NeedlesDowntownWest, 2, gen.Point{35, 29})
 	if err != nil {
 		return err
 	}
@@ -116,9 +110,9 @@ func FixupTransitions(state *decode.DecodeState) error {
 	//// Apply some miscellaneous fixups.
 
 	// The exit from the proton ax room uses a "previous" transition.  The
-	// "previous" location is incompatible with transition replacement, so
-	// change it to explicitly specify the coordinates outside the building in
-	// Las Vegas.
+	// previous location is incompatible with transition replacement, so change
+	// it to explicitly specify the coordinates outside the building in Las
+	// Vegas.
 	t := state.Blocks[1][defs.Block1FatFreddys].ActionTables.Transitions[5]
 	t.Location = defs.LocationLasVegas
 	t.LocX = 46

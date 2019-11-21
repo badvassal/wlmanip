@@ -30,8 +30,8 @@ type LocPairMap map[int]map[int][]*TransEntry
 // Collection is the set of all usable transitions among all MSQ blocks.
 // Elements in its slices can be modified, but none should be added or removed.
 type Collection struct {
-	Unfiltered LocPairMap // All transitions.
-	Filtered   LocPairMap // Filtered by a CollectCfg.
+	unfiltered LocPairMap // All transitions.
+	filtered   LocPairMap // Filtered by a CollectCfg.
 }
 
 // CollectCfg specifies which transitions to keep and which to filter.
@@ -204,8 +204,8 @@ func Collect(state decode.DecodeState, cfg CollectCfg) (*Collection, error) {
 	}
 
 	coll := &Collection{
-		Unfiltered: map[int]map[int][]*TransEntry{},
-		Filtered:   map[int]map[int][]*TransEntry{},
+		unfiltered: map[int]map[int][]*TransEntry{},
+		filtered:   map[int]map[int][]*TransEntry{},
 	}
 
 	add := func(m LocPairMap, e *TransEntry) {
@@ -217,21 +217,21 @@ func Collect(state decode.DecodeState, cfg CollectCfg) (*Collection, error) {
 	}
 
 	for _, e := range entries {
-		add(coll.Unfiltered, e)
+		add(coll.unfiltered, e)
 
 		if shouldKeepTransition(*e, cfg) {
-			add(coll.Filtered, e)
+			add(coll.filtered, e)
 		}
 	}
 
-	for from, m := range coll.Filtered {
+	for from, m := range coll.filtered {
 		for to, _ := range m {
-			if coll.Filtered[to][from] == nil {
+			if coll.filtered[to][from] == nil {
 				log.Debugf("discarding entry: %s --> %s: no round trip",
 					LocationFullString(from), LocationFullString(to))
 				delete(m, to)
 				if len(m) == 0 {
-					delete(coll.Filtered, from)
+					delete(coll.filtered, from)
 					break
 				}
 			}
@@ -241,23 +241,22 @@ func Collect(state decode.DecodeState, cfg CollectCfg) (*Collection, error) {
 	return coll, nil
 }
 
-// GetFromTo retrieves two sets of transitions:
-// 1) from X to Y, and
-// 2) from Y to X.
-func (c *Collection) GetFromTo(lp defs.LocPair) ([]*TransEntry, []*TransEntry) {
-	var from []*TransEntry
-	m := c.Filtered[lp.From]
-	if m != nil {
-		from = m[lp.To]
+func (c *Collection) GetFiltered(lp defs.LocPair) []*TransEntry {
+	m := c.filtered[lp.From]
+	if m == nil {
+		return nil
 	}
 
-	var to []*TransEntry
-	m = c.Filtered[lp.To]
-	if m != nil {
-		to = m[lp.From]
+	return m[lp.To]
+}
+
+func (c *Collection) GetUnfiltered(lp defs.LocPair) []*TransEntry {
+	m := c.unfiltered[lp.From]
+	if m == nil {
+		return nil
 	}
 
-	return from, to
+	return m[lp.To]
 }
 
 // Get1WayUp retrieves the set of unfiltered transitions from the given
@@ -267,11 +266,11 @@ func (c *Collection) GetFromTo(lp defs.LocPair) ([]*TransEntry, []*TransEntry) {
 func (c *Collection) Get1WayUp(from int) []*TransEntry {
 	var entries []*TransEntry
 
-	for to, m := range c.Unfiltered[from] {
+	for to, m := range c.unfiltered[from] {
 		// Only consider upward transitions.
 		if LocationDepthMap[to] < LocationDepthMap[from] {
 			// Only consider one-way transitions.
-			if len(c.Unfiltered[to][from]) == 0 {
+			if len(c.unfiltered[to][from]) == 0 {
 				for _, es := range m {
 					entries = append(entries, es)
 				}
@@ -282,17 +281,17 @@ func (c *Collection) Get1WayUp(from int) []*TransEntry {
 	return entries
 }
 
-// RoundTrips retrieves the set of round trip transitions from the filtered
-// list.  Return trips are not included in the returned slice, i.e., if x-->y
-// is present then y-->x is not.
-func (c *Collection) RoundTrips() []defs.LocPair {
+// FilteredRoundTrips retrieves the set of round trip transitions from the
+// filtered list.  Return trips are not included in the returned slice, i.e.,
+// if x-->y is present then y-->x is not.
+func (c *Collection) FilteredRoundTrips() []defs.LocPair {
 	var pairs []defs.LocPair
 
 	// Don't add two pairs that mirror each other.  Reverse routes get added by
 	// the caller.
 	seen := map[defs.LocPair]struct{}{}
 
-	for from, m := range c.Filtered {
+	for from, m := range c.filtered {
 		for to, _ := range m {
 
 			fromDepth := LocationDepthMap[from]
@@ -321,19 +320,4 @@ func (c *Collection) RoundTrips() []defs.LocPair {
 	})
 
 	return pairs
-}
-
-// CopyTransEntrySlice performs a deep copy of a []*TransEntry.
-func CopyTransEntrySlice(slice []*TransEntry) []*TransEntry {
-	if slice == nil {
-		return nil
-	}
-
-	dupSlice := make([]*TransEntry, len(slice))
-	for i, e := range slice {
-		dupE := *e
-		dupSlice[i] = &dupE
-	}
-
-	return dupSlice
 }
