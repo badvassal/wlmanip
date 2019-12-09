@@ -282,8 +282,9 @@ func (c *Collection) Get1WayUp(from int) []*TransEntry {
 }
 
 // FilteredRoundTrips retrieves the set of round trip transitions from the
-// filtered list.  Return trips are not included in the returned slice, i.e.,
-// if x-->y is present then y-->x is not.
+// filtered list.  Return trips are not included in the returned slice.  In
+// other words, x-->y is returned only if both x-->y and y-->x are present in
+// the filtered list.  In this case, ONLY x-->y is returned (not y-->x).
 func (c *Collection) FilteredRoundTrips() []defs.LocPair {
 	var pairs []defs.LocPair
 
