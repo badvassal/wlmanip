@@ -261,4 +261,18 @@ var LocationXListPairMap = map[defs.LocPair]TransXListPair{
 			White: []int{2},
 		},
 	},
+
+	defs.LocPair{defs.LocationLasVegas, defs.LocationFatFreddys}: TransXListPair{
+		Read: TransXList{
+			Black: []int{
+				// Kesa's House.  It is tough to make this transition work since it shares
+				// an exit transition with the proton ax room.  Just black list it for now.
+				4,
+
+				// Some odd 2x2 room with insects.  This also shares an exit transition with
+				// the proton ax room.
+				5,
+			},
+		},
+	},
 }
